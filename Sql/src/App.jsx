@@ -10,25 +10,32 @@ function getProductRows(payload) {
   return rows.filter((item) => item && typeof item === 'object' && !Array.isArray(item))
 }
 
+async function fetchProducts() {
+  const response = await fetch(`${API_URL}/productos/crud`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accion: 'READ' }),
+  })
+
+  if (!response.ok) throw new Error('No se pudieron cargar los productos.')
+
+  return getProductRows(await response.json())
+}
+
 function App() {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [purchased, setPurchased] = useState(0)
+  const [stockProduct, setStockProduct] = useState(null)
+  const [stockQuantity, setStockQuantity] = useState('')
+  const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     async function loadProducts() {
       try {
-        const response = await fetch(`${API_URL}/productos/crud`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accion: 'READ' }),
-        })
-
-        if (!response.ok) throw new Error('No se pudieron cargar los productos.')
-
-        const data = await response.json()
-        setProducts(getProductRows(data))
+        setProducts(await fetchProducts())
       } catch (requestError) {
         setError(requestError.message || 'No se pudo conectar con el inventario.')
       } finally {
@@ -38,6 +45,35 @@ function App() {
 
     loadProducts()
   }, [])
+
+  async function handleStockIncrease(event) {
+    event.preventDefault()
+    setFormError('')
+    setSaving(true)
+
+    try {
+      const response = await fetch(`${API_URL}/productos/crud`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'ALTA_STOCK',
+          id: stockProduct.id,
+          stock_actual: Number(stockQuantity),
+        }),
+      })
+
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'No se pudo añadir el producto.')
+
+      setProducts(await fetchProducts())
+      setStockProduct(null)
+      setStockQuantity('')
+    } catch (requestError) {
+      setFormError(requestError.message || 'No se pudo añadir el producto.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function handlePurchase(id) {
     const productToBuy = products.find((product) => product.id === id)
@@ -103,8 +139,32 @@ function App() {
             <p className="eyebrow">Selección del día</p>
             <h2 id="catalog-title">Nuestros productos</h2>
           </div>
-          <span className="product-count">{products.length} disponibles</span>
+          <div className="catalog-actions">
+            <span className="product-count">{products.length} disponibles</span>
+            <span className="catalog-hint">Selecciona un producto para aumentar su existencia</span>
+          </div>
         </div>
+
+        {stockProduct && (
+          <div className="form-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setStockProduct(null)}>
+            <form className="product-form" onSubmit={handleStockIncrease}>
+              <div className="form-heading">
+                <div>
+                  <p className="eyebrow">Entrada de inventario</p>
+                  <h2>Alta de stock</h2>
+                  <p className="form-product-name">{stockProduct.nombre}</p>
+                </div>
+                <button type="button" className="close-button" aria-label="Cerrar formulario" onClick={() => setStockProduct(null)}>×</button>
+              </div>
+              <label className="stock-input-label">Cantidad a ingresar<input type="number" min="1" value={stockQuantity} onChange={(event) => setStockQuantity(event.target.value)} required autoFocus /></label>
+              {formError && <p className="form-error">{formError}</p>}
+              <div className="form-actions">
+                <button type="button" className="cancel-button" onClick={() => setStockProduct(null)}>Cancelar</button>
+                <button type="submit" className="buy-button" disabled={saving}>{saving ? 'Guardando...' : 'Registrar alta'}</button>
+              </div>
+            </form>
+          </div>
+        )}
 
         {loading && <p className="state-message">Cargando inventario...</p>}
         {error && <p className="state-message error-message">{error} Revisa que el backend esté encendido.</p>}
@@ -139,10 +199,15 @@ function App() {
                   </div>
                 </div>
                 {isLowStock && <p className="stock-warning">Quedan pocos</p>}
-                <button type="button" className="buy-button" disabled={stock === 0} onClick={() => handlePurchase(product.id)}>
-                  {stock === 0 ? 'Agotado' : 'Comprar'}
-                  {stock > 0 && <span aria-hidden="true">→</span>}
-                </button>
+                <div className="card-actions">
+                  <button type="button" className="stock-button" onClick={() => { setStockProduct(product); setFormError(''); setStockQuantity('') }}>
+                    <span aria-hidden="true">+</span> Alta de stock
+                  </button>
+                  <button type="button" className="buy-button" disabled={stock === 0} onClick={() => handlePurchase(product.id)}>
+                    {stock === 0 ? 'Agotado' : 'Comprar'}
+                    {stock > 0 && <span aria-hidden="true">→</span>}
+                  </button>
+                </div>
               </article>
             )
           })}

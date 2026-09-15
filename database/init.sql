@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS productos (
 CREATE TABLE IF NOT EXISTS ventas (
     id INT AUTO_INCREMENT PRIMARY KEY,
     fecha_venta DATETIME DEFAULT CURRENT_TIMESTAMP,
+    producto_id INT NOT NULL,
+    cantidad INT NOT NULL,
+    precio_unitario DECIMAL(10, 2) NOT NULL,
     total DECIMAL(10, 2) NOT NULL DEFAULT 0.00
 );
 
@@ -129,6 +132,30 @@ BEGIN
 
         END IF;
 
+    ELSEIF UPPER(p_accion) = 'CREATE' THEN
+
+        INSERT INTO productos (
+            nombre,
+            descripcion,
+            precio,
+            stock_actual,
+            stock_minimo,
+            cant_sugerida_reorden,
+            proveedor_id
+        ) VALUES (
+            p_nombre,
+            p_descripcion,
+            p_precio,
+            p_stock_actual,
+            p_stock_minimo,
+            p_cant_sugerida_reorden,
+            p_proveedor_id
+        );
+
+        SELECT
+            'Producto creado correctamente' AS mensaje,
+            LAST_INSERT_ID() AS id;
+
     ELSEIF UPPER(p_accion) = 'UPDATE' THEN
 
         IF NOT EXISTS (
@@ -181,6 +208,28 @@ BEGIN
 
         END IF;
 
+    ELSEIF UPPER(p_accion) = 'ALTA_STOCK' THEN
+        IF p_stock_actual IS NULL OR p_stock_actual <= 0 THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'La cantidad de alta debe ser mayor que cero';
+        ELSEIF NOT EXISTS (
+            SELECT 1
+            FROM productos
+            WHERE id = p_id
+        ) THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'El producto no existe';
+        ELSE
+            UPDATE productos
+            SET stock_actual = stock_actual + p_stock_actual
+            WHERE id = p_id;
+
+            SELECT
+                'Alta de stock registrada con exito' AS mensaje,
+                p_id AS producto_id,
+                p_stock_actual AS cantidad_agregada;
+        END IF;
+
     ELSEIF UPPER(p_accion) = 'COMPRAR' THEN
         SELECT stock_actual, precio 
         INTO v_stock_disponible, v_precio_producto
@@ -196,7 +245,6 @@ BEGIN
             SET MESSAGE_TEXT = 'Stock insuficiente para realizar la compra';
 
         ELSE
-            -
             UPDATE productos
             SET stock_actual = stock_actual - p_stock_actual
             WHERE id = p_id;
@@ -216,7 +264,7 @@ BEGIN
     ELSE
 
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Accion no valida. Use READ, UPDATE, DELETE o COMPRAR';
+        SET MESSAGE_TEXT = 'Accion no valida. Use READ, CREATE, UPDATE, DELETE, ALTA_STOCK o COMPRAR';
 
     END IF;
 

@@ -38,22 +38,22 @@ app.post('/productos/crud', (req, res) => {
         cant_sugerida_reorden,
         proveedor_id
     } = req.body;
-//para que la informacion llegue en json
+    //para que la informacion llegue en json
 
 
-    const accionesPermitidas = ['READ', 'UPDATE', 'DELETE', 'COMPRAR'];
+    const accionesPermitidas = ['READ', 'CREATE', 'UPDATE', 'DELETE', 'COMPRAR', 'ALTA_STOCK'];
     //comprueba si al accion solicitada es valida
     if (!accionesPermitidas.includes(accion.toUpperCase())) {
         //devuelve el status del servidor 
         return res.status(400).json({
-            error: 'Accion no permitida. Solo se permiten READ, UPDATE, DELETE y COMPRAR'
+            error: 'Accion no permitida. Solo se permiten READ, CREATE, UPDATE, DELETE, COMPRAR y ALTA_STOCK'
         });
     }
     //llamar el procediemiento almacenado en mysql para hacer la consulta
     const sql = `
         CALL sp_productos_crud(?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-//los ? son para mandarle los parametros si tiene null se omite 
+    //los ? son para mandarle los parametros si tiene null se omite 
     conexion.query(
         sql,
         [
