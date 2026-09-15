@@ -39,13 +39,36 @@ function App() {
     loadProducts()
   }, [])
 
-  function handlePurchase(id) {
-    setProducts((currentProducts) => currentProducts.map((product) => {
-      if (product.id !== id || Number(product.stock_actual) <= 0) return product
+  async function handlePurchase(id) {
+    const productToBuy = products.find((product) => product.id === id)
+    if (!productToBuy || Number(productToBuy.stock_actual) <= 0) return
 
-      return { ...product, stock_actual: Number(product.stock_actual) - 1 }
-    }))
-    setPurchased((current) => current + 1)
+    try {
+      const response = await fetch(`${API_URL}/productos/crud`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accion: 'COMPRAR',
+          id: id,
+          stock_actual: 1
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Error al registrar la compra en el servidor.')
+      }
+
+      setProducts((currentProducts) =>
+        currentProducts.map((product) => {
+          if (product.id !== id) return product
+          return { ...product, stock_actual: Number(product.stock_actual) - 1 }
+        })
+      )
+      setPurchased((current) => current + 1)
+    } catch (err) {
+      console.error('Error al realizar la compra:', err)
+      alert(err.message || 'No se pudo registrar la compra.')
+    }
   }
 
   return (

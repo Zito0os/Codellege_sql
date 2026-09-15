@@ -73,49 +73,21 @@ DROP FUNCTION IF EXISTS fn_stock_bajo;
 
 DELIMITER //
 
-CREATE FUNCTION fn_stock_bajo(
-    p_producto_id INT
-)
-RETURNS TINYINT
-READS SQL DATA
-BEGIN
-    DECLARE v_stock_actual INT;
-    DECLARE v_stock_minimo INT;
-
-    SELECT stock_actual, stock_minimo
-    INTO v_stock_actual, v_stock_minimo
-    FROM productos
-    WHERE id = p_producto_id;
-
-    IF v_stock_actual IS NULL THEN
-        RETURN 0;
-    END IF;
-
-    IF v_stock_actual <= v_stock_minimo THEN
-        RETURN 1;
-    ELSE
-        RETURN 0;
-    END IF;
-END //
-
-DELIMITER ;
-
-DROP PROCEDURE IF EXISTS sp_productos_crud;
-
-DELIMITER //
-
 CREATE PROCEDURE sp_productos_crud(
     IN p_accion VARCHAR(20),
     IN p_id INT,
     IN p_nombre VARCHAR(100),
     IN p_descripcion TEXT,
     IN p_precio DECIMAL(10,2),
-    IN p_stock_actual INT,
+    IN p_stock_actual INT, -- Se usará como "cantidad a comprar" cuando p_accion = 'COMPRAR'
     IN p_stock_minimo INT,
     IN p_cant_sugerida_reorden INT,
     IN p_proveedor_id INT
 )
 BEGIN
+    DECLARE v_stock_disponible INT;
+    DECLARE v_precio_producto DECIMAL(10,2);
+    DECLARE v_total_venta DECIMAL(10,2);
 
     IF UPPER(p_accion) = 'READ' THEN
 
@@ -209,10 +181,42 @@ BEGIN
 
         END IF;
 
+    ELSEIF UPPER(p_accion) = 'COMPRAR' THEN
+        SELECT stock_actual, precio 
+        INTO v_stock_disponible, v_precio_producto
+        FROM productos 
+        WHERE id = p_id;
+
+        IF v_stock_disponible IS NULL THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'El producto no existe';
+        
+        ELSEIF v_stock_disponible < p_stock_actual THEN
+            SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'Stock insuficiente para realizar la compra';
+
+        ELSE
+            -
+            UPDATE productos
+            SET stock_actual = stock_actual - p_stock_actual
+            WHERE id = p_id;
+            SET v_total_venta = p_stock_actual * IFNULL(p_precio, v_precio_producto);
+            
+            INSERT INTO ventas (producto_id, cantidad, precio_unitario, total)
+            VALUES (p_id, p_stock_actual, IFNULL(p_precio, v_precio_producto), v_total_venta);
+
+            SELECT 
+                'Compra registrada con exito' AS mensaje,
+                LAST_INSERT_ID() AS venta_id,
+                p_id AS producto_id,
+                (v_stock_disponible - p_stock_actual) AS nuevo_stock;
+
+        END IF;
+
     ELSE
 
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Accion no valida. Use READ, UPDATE o DELETE';
+        SET MESSAGE_TEXT = 'Accion no valida. Use READ, UPDATE, DELETE o COMPRAR';
 
     END IF;
 

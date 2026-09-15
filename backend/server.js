@@ -41,12 +41,12 @@ app.post('/productos/crud', (req, res) => {
 //para que la informacion llegue en json
 
 
-    const accionesPermitidas = ['READ', 'UPDATE', 'DELETE'];
+    const accionesPermitidas = ['READ', 'UPDATE', 'DELETE', 'COMPRAR'];
     //comprueba si al accion solicitada es valida
     if (!accionesPermitidas.includes(accion.toUpperCase())) {
         //devuelve el status del servidor 
         return res.status(400).json({
-            error: 'Accion no permitida. Solo se permiten READ, UPDATE y DELETE'
+            error: 'Accion no permitida. Solo se permiten READ, UPDATE, DELETE y COMPRAR'
         });
     }
     //llamar el procediemiento almacenado en mysql para hacer la consulta
@@ -78,7 +78,7 @@ app.post('/productos/crud', (req, res) => {
                 });
             }
             //si todo sale bien devuelve los resultados de la consulta
-            res.json(resultados);
+            res.json(resultados[0]);
         }
     );
 });
