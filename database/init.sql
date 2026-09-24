@@ -72,8 +72,6 @@ VALUES
 ('Jabón Zote Blanco 400g', 'Jabón de lavandería', 25.00, 16, 12, 24, 3),
 ('Papel Higiénico Petalo 4 pzas', 'Paquete con 4 rollos', 32.00, 11, 10, 20, 3);
 
-DROP FUNCTION IF EXISTS fn_stock_bajo;
-
 DELIMITER //
 
 CREATE PROCEDURE sp_productos_crud(
@@ -106,7 +104,10 @@ BEGIN
                 p.cant_sugerida_reorden,
                 p.proveedor_id,
                 pr.nombre_empresa AS proveedor,
-                fn_stock_bajo(p.id) AS stock_bajo
+                CASE
+                    WHEN p.stock_actual <= p.stock_minimo THEN 1
+                    ELSE 0
+                END AS stock_bajo
             FROM productos AS p
             LEFT JOIN proveedores AS pr
                 ON p.proveedor_id = pr.id
@@ -124,7 +125,10 @@ BEGIN
                 p.cant_sugerida_reorden,
                 p.proveedor_id,
                 pr.nombre_empresa AS proveedor,
-                fn_stock_bajo(p.id) AS stock_bajo
+                CASE
+                    WHEN p.stock_actual <= p.stock_minimo THEN 1
+                    ELSE 0
+                END AS stock_bajo
             FROM productos AS p
             LEFT JOIN proveedores AS pr
                 ON p.proveedor_id = pr.id
